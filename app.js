@@ -1,238 +1,167 @@
 /**
- * Dart AR Trainer – app.js
- * Hauptlogik: Spielmodi, Zielauswahl, AR-Updates, UI
+ * Dart AR Trainer - app.js
  */
 
 const App = (() => {
 
-  // ── Dartscheiben-Felder ──────────────────────────────────────────
   const FIELDS = {
-    random:  ['T20','T19','T18','T17','T16','T15','D20','D19','D18','D17',
-              'D16','D15','D10','D8','D5','D3','BULL','20','19','18','17','16'],
+    random:  ['T20','T19','T18','T17','T16','T15','D20','D19','D18','D17','D16','D15','D10','D8','D5','D3','BULL','20','19','18','17','16'],
     treble:  ['T20','T19','T18','T17','T16','T15','T14','T13','T12','T11','T10'],
     double:  ['D20','D19','D18','D17','D16','D15','D10','D8','D5','D3','D2','D1'],
     cricket: ['20','19','18','17','16','15','BULL'],
   };
 
-  // Winkel pro Feld (Grad, 0° = oben, im Uhrzeigersinn)
   const FIELD_ANGLES = {
-    20:0,  1:18,  18:36,  4:54,  13:72,  6:90,
-    10:108, 15:126, 2:144, 17:162, 3:180, 19:198,
-    7:216, 16:234, 8:252,  11:270, 14:288, 9:306,
-    12:324, 5:342, BULL:0
+    20:0,1:18,18:36,4:54,13:72,6:90,10:108,15:126,2:144,17:162,
+    3:180,19:198,7:216,16:234,8:252,11:270,14:288,9:306,12:324,5:342
   };
 
-  // Farbe je nach Feldtyp
-  const FIELD_COLORS = {
-    T: '#ff4d00',   // Triple  → Orange
-    D: '#00aaff',   // Double  → Blau
-    B: '#ff0055',   // Bull    → Rot
-    S: '#ffbb00',   // Single  → Gelb
-  };
+  const FIELD_COLORS = { T:'#ff4d00', D:'#00aaff', B:'#ff0055', S:'#ffbb00' };
+  const MODES        = ['random','treble','double','cricket'];
+  const MODE_LABELS  = { random:'Zufaellig', treble:'Triple', double:'Doppel', cricket:'Cricket' };
 
-  const MODES      = ['random','treble','double','cricket'];
-  const MODE_LABELS = { random:'Zufällig', treble:'Triple', double:'Doppel', cricket:'Cricket' };
-
-  // ── Spielstand ────────────────────────────────────────────────────
   let state = {
-    currentTarget : 'T20',
-    hits          : 0,
-    streak        : 0,
-    total         : 0,
-    modeIndex     : 0,
-    markerFound   : false,
-    started       : false,
+    currentTarget:'T20', hits:0, streak:0, total:0,
+    modeIndex:0, markerFound:false, started:false
   };
 
-  // ── DOM-Referenzen ────────────────────────────────────────────────
-  const el = {
-    setupScreen  : () => document.getElementById('setup-screen'),
-    mainUI       : () => document.getElementById('main-ui'),
-    arScene      : () => document.getElementById('ar-scene'),
-    status       : () => document.getElementById('status'),
-    targetField  : () => document.getElementById('target-field'),
-    arText       : () => document.getElementById('ar-target-text'),
-    scoreHits    : () => document.getElementById('score-hits'),
-    scoreStreak  : () => document.getElementById('score-streak'),
-    scoreTotal   : () => document.getElementById('score-total'),
-    btnMode      : () => document.getElementById('btn-mode'),
-    sector       : () => document.getElementById('sector-highlight'),
-    ringOuter    : () => document.getElementById('ring-outer'),
-    ringMid      : () => document.getElementById('ring-mid'),
-    bull         : () => document.getElementById('ar-bull'),
-    arAnchor     : () => document.getElementById('ar-anchor'),
-    glow         : () => document.querySelector('a-plane[color]'),
-  };
+  function getEl(id) { return document.getElementById(id); }
 
-  // ── Hilfsfunktionen ───────────────────────────────────────────────
-  function getFieldType(target) {
-    if (target === 'BULL') return 'B';
-    if (target.startsWith('T')) return 'T';
-    if (target.startsWith('D')) return 'D';
+  function getFieldType(t) {
+    if (t==='BULL') return 'B';
+    if (t.startsWith('T')) return 'T';
+    if (t.startsWith('D')) return 'D';
     return 'S';
   }
 
-  function getFieldColor(target) {
-    return FIELD_COLORS[getFieldType(target)] ?? '#ffbb00';
-  }
-
-  function getFieldAngle(target) {
-    const num = parseInt(target.replace(/[TDB]/g, ''));
-    return FIELD_ANGLES[isNaN(num) ? 'BULL' : num] ?? 0;
-  }
+  function getFieldColor(t)  { return FIELD_COLORS[getFieldType(t)] || '#ffbb00'; }
+  function getFieldAngle(t)  { var n=parseInt(t.replace(/[TDB]/g,'')); return isNaN(n)?0:(FIELD_ANGLES[n]||0); }
 
   function pickTarget() {
-    const mode = MODES[state.modeIndex];
-    const pool = FIELDS[mode];
-    let next;
-    do {
-      next = pool[Math.floor(Math.random() * pool.length)];
-    } while (next === state.currentTarget && pool.length > 1);
+    var pool=FIELDS[MODES[state.modeIndex]], next;
+    do { next=pool[Math.floor(Math.random()*pool.length)]; }
+    while (next===state.currentTarget && pool.length>1);
     return next;
   }
 
-  // ── UI aktualisieren ─────────────────────────────────────────────
-  function updateUI() {
-    const target = state.currentTarget;
-    const color  = getFieldColor(target);
-    const angle  = getFieldAngle(target);
-
-    // Zahlen
-    el.scoreHits()?.setAttribute   && (el.scoreHits().textContent   = state.hits);
-    el.scoreStreak()?.textContent  && (el.scoreStreak().textContent  = state.streak);
-    el.scoreTotal()?.textContent   && (el.scoreTotal().textContent   = state.total);
-    if (el.scoreHits())   el.scoreHits().textContent   = state.hits;
-    if (el.scoreStreak()) el.scoreStreak().textContent = state.streak;
-    if (el.scoreTotal())  el.scoreTotal().textContent  = state.total;
-
-    // Zielfeld DOM
-    const tfEl = el.targetField();
-    if (tfEl) {
-      tfEl.textContent       = target;
-      tfEl.style.color       = color;
-      tfEl.style.textShadow  = `0 0 30px ${color}88`;
-    }
-
-    // AR Text
-    el.arText()?.setAttribute('value', target);
-
-    // AR Farben
-    el.ringOuter()?.setAttribute('color', color);
-    el.ringMid()?.setAttribute('color', color);
-    el.bull()?.setAttribute('color', color);
-    el.glow()?.setAttribute('color', color);
-
-    // Sektor rotieren
-    el.sector()?.setAttribute('rotation', `0 0 ${-angle}`);
-
-    // Modus-Button
-    const mode = MODES[state.modeIndex];
-    if (el.btnMode()) el.btnMode().textContent = `Modus: ${MODE_LABELS[mode]}`;
+  function setStatus(text, cls) {
+    var s=getEl('status');
+    if(s){ s.textContent=text; s.className=cls||'searching'; }
   }
 
-  // ── AR starten ───────────────────────────────────────────────────
+  function updateUI() {
+    var target=state.currentTarget, color=getFieldColor(target), angle=getFieldAngle(target);
+    var h=getEl('score-hits'), st=getEl('score-streak'), to=getEl('score-total');
+    if(h)  h.textContent  = state.hits;
+    if(st) st.textContent = state.streak;
+    if(to) to.textContent = state.total;
+    var tf=getEl('target-field');
+    if(tf){ tf.textContent=target; tf.style.color=color; tf.style.textShadow='0 0 30px '+color+'88'; }
+    var arText=getEl('ar-target-text');
+    if(arText) arText.setAttribute('value', target);
+    var ro=getEl('ring-outer'), rm=getEl('ring-mid'), b=getEl('ar-bull');
+    if(ro) ro.setAttribute('color',color);
+    if(rm) rm.setAttribute('color',color);
+    if(b)  b.setAttribute('color',color);
+    var sec=getEl('sector-highlight');
+    if(sec) sec.setAttribute('rotation','0 0 '+ (-angle));
+    var bm=getEl('btn-mode');
+    if(bm) bm.textContent='Modus: '+MODE_LABELS[MODES[state.modeIndex]];
+  }
+
   async function start() {
-    if (state.started) return;
+    if(state.started) return;
 
-    const statusEl = el.status();
-
-    // Schritt 1: Kamera explizit anfragen (wichtig für Samsung Internet)
     try {
-      if (statusEl) { statusEl.textContent = '📷 Kamera wird gestartet …'; statusEl.className = 'searching'; }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      stream.getTracks().forEach(track => track.stop());
-
-      // Kurz warten damit Samsung Internet die Kamera vollständig freigibt
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-    } catch (err) {
-      console.error('Kamera-Fehler:', err);
-      if (statusEl) { statusEl.textContent = '❌ Kamera verweigert'; statusEl.className = 'searching'; }
-      alert('Kamera-Zugriff wurde verweigert.\n\nBitte in den Browser-Einstellungen die Kamera freigeben und neu laden.');
+      setStatus('Kamera wird gestartet...','searching');
+      var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      await new Promise(function(res){ setTimeout(res,1000); });
+    } catch(err) {
+      console.error('Kamera-Fehler:',err);
+      setStatus('Kamera verweigert - bitte freigeben','searching');
+      alert('Kamera-Zugriff verweigert.\nBitte Kamera-Berechtigung erteilen und Seite neu laden.');
       return;
     }
 
     state.started = true;
+    setStatus('AR wird geladen...','searching');
 
-    if (statusEl) { statusEl.textContent = '⟳ AR wird geladen …'; statusEl.className = 'searching'; }
+    // Szene muss sichtbar sein BEVOR MindAR starten kann
+    var scene = getEl('ar-scene');
+    if(!scene) return;
+    scene.style.display = 'block';
+    scene.style.position = 'fixed';
+    scene.style.inset = '0';
+    scene.style.width = '100vw';
+    scene.style.height = '100vh';
+    scene.style.zIndex = '0';
 
-    el.setupScreen()?.classList.add('hidden');
-    el.mainUI()?.classList.remove('hidden');
-    el.arScene()?.classList.remove('hidden');
+    await new Promise(function(res){ setTimeout(res,400); });
 
-    const scene = el.arScene();
-    if (!scene) return;
-
-    // Warnung falls MindAR zu lange braucht
-    const loadTimeout = setTimeout(() => {
-      if (statusEl) statusEl.textContent = '⚠️ Laden dauert – bitte warten …';
-    }, 8000);
-
-    scene.addEventListener('loaded', () => {
-      clearTimeout(loadTimeout);
-      if (statusEl) { statusEl.textContent = '⟳ Scheibe suchen …'; statusEl.className = 'searching'; }
-      const sys = scene.systems['mindar-image-system'];
-      sys?.start();
-    });
+    var setup=getEl('setup-screen');
+    if(setup) setup.classList.add('hidden');
+    var mainUI=getEl('main-ui');
+    if(mainUI) mainUI.classList.remove('hidden');
 
     // Marker-Events
-    const anchor = el.arAnchor();
-    anchor?.addEventListener('targetFound', () => {
-      state.markerFound = true;
-      const s = el.status();
-      if (s) { s.textContent = '✓ Scheibe erkannt'; s.className = 'found'; }
-    });
+    var anchor=getEl('ar-anchor');
+    if(anchor) {
+      anchor.addEventListener('targetFound', function(){
+        state.markerFound=true;
+        setStatus('Scheibe erkannt','found');
+      });
+      anchor.addEventListener('targetLost', function(){
+        state.markerFound=false;
+        setStatus('Scheibe suchen...','searching');
+      });
+    }
 
-    anchor?.addEventListener('targetLost', () => {
-      state.markerFound = false;
-      const s = el.status();
-      if (s) { s.textContent = '⟳ Scheibe suchen …'; s.className = 'searching'; }
-    });
+    // Polling bis MindAR-System bereit
+    var attempts=0;
+    var tryStart=setInterval(function(){
+      attempts++;
+      var sys=scene.systems&&scene.systems['mindar-image-system'];
+      if(sys) {
+        clearInterval(tryStart);
+        setStatus('Scheibe suchen...','searching');
+        try{ sys.start(); }catch(e){ console.error(e); }
+        return;
+      }
+      if(attempts>=40) {
+        clearInterval(tryStart);
+        setStatus('Fehler - bitte Seite neu laden','searching');
+      }
+    }, 500);
   }
 
-  // ── Nächstes Ziel ────────────────────────────────────────────────
   function nextTarget() {
     state.total++;
-    state.currentTarget = pickTarget();
-    const tfEl = el.targetField();
-    tfEl?.classList.remove('hit');
-    void tfEl?.offsetWidth; // reflow für Animation
+    state.currentTarget=pickTarget();
+    var tf=getEl('target-field');
+    if(tf){ tf.classList.remove('hit'); void tf.offsetWidth; }
     updateUI();
   }
 
-  // ── Treffer registrieren (manuell – später via autodarts API) ────
   function registerHit() {
-    state.hits++;
-    state.streak++;
-    el.targetField()?.classList.add('hit');
-    setTimeout(() => nextTarget(), 700);
+    state.hits++; state.streak++;
+    var tf=getEl('target-field');
+    if(tf) tf.classList.add('hit');
+    setTimeout(function(){ nextTarget(); },700);
   }
 
-  // ── Modus wechseln ───────────────────────────────────────────────
   function toggleMode() {
-    state.modeIndex = (state.modeIndex + 1) % MODES.length;
-    state.streak    = 0;
+    state.modeIndex=(state.modeIndex+1)%MODES.length;
+    state.streak=0;
     nextTarget();
   }
 
-  // ── Stats zurücksetzen ───────────────────────────────────────────
   function resetStats() {
-    state.hits   = 0;
-    state.streak = 0;
-    state.total  = 0;
+    state.hits=0; state.streak=0; state.total=0;
     updateUI();
   }
 
-  // ── Init ─────────────────────────────────────────────────────────
-  function init() {
-    updateUI();
-    console.log('🎯 Dart AR Trainer geladen');
-  }
+  document.addEventListener('DOMContentLoaded', function(){ updateUI(); });
 
-  document.addEventListener('DOMContentLoaded', init);
-
-  // Öffentliche API
   return { start, nextTarget, registerHit, toggleMode, resetStats };
-
 })();
