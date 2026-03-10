@@ -141,18 +141,21 @@ const App = (() => {
       if (statusEl) { statusEl.textContent = '📷 Kamera wird gestartet …'; statusEl.className = 'searching'; }
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-
-      // Stream sofort wieder stoppen – MindAR startet seine eigene Kamera
       stream.getTracks().forEach(track => track.stop());
+
+      // Kurz warten damit Samsung Internet die Kamera vollständig freigibt
+      await new Promise(resolve => setTimeout(resolve, 800));
 
     } catch (err) {
       console.error('Kamera-Fehler:', err);
-      if (statusEl) { statusEl.textContent = '❌ Kamera verweigert – bitte freigeben'; statusEl.className = 'searching'; }
-      alert('Kamera-Zugriff wurde verweigert.\n\nBitte in den Browser-Einstellungen die Kamera für diese Seite freigeben und dann neu laden.');
+      if (statusEl) { statusEl.textContent = '❌ Kamera verweigert'; statusEl.className = 'searching'; }
+      alert('Kamera-Zugriff wurde verweigert.\n\nBitte in den Browser-Einstellungen die Kamera freigeben und neu laden.');
       return;
     }
 
     state.started = true;
+
+    if (statusEl) { statusEl.textContent = '⟳ AR wird geladen …'; statusEl.className = 'searching'; }
 
     el.setupScreen()?.classList.add('hidden');
     el.mainUI()?.classList.remove('hidden');
@@ -161,7 +164,14 @@ const App = (() => {
     const scene = el.arScene();
     if (!scene) return;
 
+    // Warnung falls MindAR zu lange braucht
+    const loadTimeout = setTimeout(() => {
+      if (statusEl) statusEl.textContent = '⚠️ Laden dauert – bitte warten …';
+    }, 8000);
+
     scene.addEventListener('loaded', () => {
+      clearTimeout(loadTimeout);
+      if (statusEl) { statusEl.textContent = '⟳ Scheibe suchen …'; statusEl.className = 'searching'; }
       const sys = scene.systems['mindar-image-system'];
       sys?.start();
     });
