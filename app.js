@@ -17,8 +17,8 @@ const App = (() => {
   };
 
   const FIELD_COLORS = { T:'#ff4d00', D:'#00aaff', B:'#ff0055', S:'#ffbb00' };
-  const MODES        = ['random','treble','double','cricket'];
-  const MODE_LABELS  = { random:'Zufaellig', treble:'Triple', double:'Doppel', cricket:'Cricket' };
+  const MODES       = ['random','treble','double','cricket'];
+  const MODE_LABELS = { random:'Zufaellig', treble:'Triple', double:'Doppel', cricket:'Cricket' };
 
   let state = {
     currentTarget:'T20', hits:0, streak:0, total:0,
@@ -34,8 +34,8 @@ const App = (() => {
     return 'S';
   }
 
-  function getFieldColor(t)  { return FIELD_COLORS[getFieldType(t)] || '#ffbb00'; }
-  function getFieldAngle(t)  { var n=parseInt(t.replace(/[TDB]/g,'')); return isNaN(n)?0:(FIELD_ANGLES[n]||0); }
+  function getFieldColor(t) { return FIELD_COLORS[getFieldType(t)] || '#ffbb00'; }
+  function getFieldAngle(t) { var n=parseInt(t.replace(/[TDB]/g,'')); return isNaN(n)?0:(FIELD_ANGLES[n]||0); }
 
   function pickTarget() {
     var pool=FIELDS[MODES[state.modeIndex]], next;
@@ -52,9 +52,9 @@ const App = (() => {
   function updateUI() {
     var target=state.currentTarget, color=getFieldColor(target), angle=getFieldAngle(target);
     var h=getEl('score-hits'), st=getEl('score-streak'), to=getEl('score-total');
-    if(h)  h.textContent  = state.hits;
-    if(st) st.textContent = state.streak;
-    if(to) to.textContent = state.total;
+    if(h)  h.textContent=state.hits;
+    if(st) st.textContent=state.streak;
+    if(to) to.textContent=state.total;
     var tf=getEl('target-field');
     if(tf){ tf.textContent=target; tf.style.color=color; tf.style.textShadow='0 0 30px '+color+'88'; }
     var arText=getEl('ar-target-text');
@@ -64,47 +64,37 @@ const App = (() => {
     if(rm) rm.setAttribute('color',color);
     if(b)  b.setAttribute('color',color);
     var sec=getEl('sector-highlight');
-    if(sec) sec.setAttribute('rotation','0 0 '+ (-angle));
+    if(sec) sec.setAttribute('rotation','0 0 '+(-angle));
     var bm=getEl('btn-mode');
     if(bm) bm.textContent='Modus: '+MODE_LABELS[MODES[state.modeIndex]];
   }
 
+  // AR starten - Szene ist bereits geladen, wir brauchen nur Kamera + MindAR starten
   async function start() {
     if(state.started) return;
 
+    // Kamera-Berechtigung anfragen
     try {
       setStatus('Kamera wird gestartet...','searching');
       var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
       stream.getTracks().forEach(function(t){ t.stop(); });
-      await new Promise(function(res){ setTimeout(res,1000); });
+      await new Promise(function(res){ setTimeout(res, 800); });
     } catch(err) {
-      console.error('Kamera-Fehler:',err);
-      setStatus('Kamera verweigert - bitte freigeben','searching');
+      console.error('Kamera-Fehler:', err);
       alert('Kamera-Zugriff verweigert.\nBitte Kamera-Berechtigung erteilen und Seite neu laden.');
+      setStatus('Kamera verweigert','searching');
       return;
     }
 
     state.started = true;
-    setStatus('AR wird geladen...','searching');
 
-    // Szene muss sichtbar sein BEVOR MindAR starten kann
-    var scene = getEl('ar-scene');
-    if(!scene) return;
-    scene.style.display = 'block';
-    scene.style.position = 'fixed';
-    scene.style.inset = '0';
-    scene.style.width = '100vw';
-    scene.style.height = '100vh';
-    scene.style.zIndex = '0';
-
-    await new Promise(function(res){ setTimeout(res,400); });
-
+    // Setup ausblenden, Haupt-UI zeigen
     var setup=getEl('setup-screen');
     if(setup) setup.classList.add('hidden');
     var mainUI=getEl('main-ui');
     if(mainUI) mainUI.classList.remove('hidden');
 
-    // Marker-Events
+    // Marker-Events registrieren
     var anchor=getEl('ar-anchor');
     if(anchor) {
       anchor.addEventListener('targetFound', function(){
@@ -117,22 +107,25 @@ const App = (() => {
       });
     }
 
-    // Polling bis MindAR-System bereit
-    var attempts=0;
-    var tryStart=setInterval(function(){
-      attempts++;
-      var sys=scene.systems&&scene.systems['mindar-image-system'];
-      if(sys) {
-        clearInterval(tryStart);
-        setStatus('Scheibe suchen...','searching');
-        try{ sys.start(); }catch(e){ console.error(e); }
-        return;
-      }
-      if(attempts>=40) {
-        clearInterval(tryStart);
-        setStatus('Fehler - bitte Seite neu laden','searching');
-      }
-    }, 500);
+    // MindAR direkt starten - Szene ist bereits geladen
+    var scene=getEl('ar-scene');
+    if(!scene) return;
+
+    var sys = scene.systems && scene.systems['mindar-image-system'];
+    if(sys) {
+      setStatus('Scheibe suchen...','searching');
+      sys.start();
+    } else {
+      // Szene noch nicht fertig - kurz auf loaded warten
+      setStatus('AR wird initialisiert...','searching');
+      scene.addEventListener('loaded', function() {
+        var s = scene.systems && scene.systems['mindar-image-system'];
+        if(s) {
+          setStatus('Scheibe suchen...','searching');
+          s.start();
+        }
+      });
+    }
   }
 
   function nextTarget() {
@@ -147,7 +140,7 @@ const App = (() => {
     state.hits++; state.streak++;
     var tf=getEl('target-field');
     if(tf) tf.classList.add('hit');
-    setTimeout(function(){ nextTarget(); },700);
+    setTimeout(function(){ nextTarget(); }, 700);
   }
 
   function toggleMode() {
