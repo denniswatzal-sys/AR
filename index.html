@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="description" content="AR Dart Trainer – Trainiere mit Augmented Reality auf deiner Dartscheibe" />
+  <title>🎯 Dart AR Trainer</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- MindAR + A-Frame -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+</head>
+<body>
+
+  <!-- ═══ SETUP SCREEN ═══ -->
+  <div id="setup-screen">
+    <div class="setup-logo">🎯</div>
+    <h1 class="setup-title">Dart AR Trainer</h1>
+    <p class="setup-subtitle">Augmented Reality für dein Dart-Training</p>
+
+    <div class="setup-steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          Erstelle deinen Marker auf
+          <a href="https://hiukim.github.io/mind-ar-js-doc/tools/compile" target="_blank">MindAR Compiler</a>:
+          Foto deiner Dartscheibe hochladen → <code>targets.mind</code> herunterladen
+          → ins GitHub Repo hochladen.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          Stelle sicher, dass <code>targets.mind</code> im selben Ordner liegt
+          wie diese App (GitHub Pages Repo).
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          Kamera auf deine Dartscheibe richten –
+          das AR-Overlay erscheint automatisch!
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-start" onclick="App.start()">AR starten 🚀</button>
+    <p class="setup-note">Kamera-Zugriff wird beim Start abgefragt.</p>
+  </div>
+
+  <!-- ═══ HAUPT-UI ═══ -->
+  <div id="main-ui" class="hidden">
+
+    <div id="header">
+      <h1>🎯 DART AR</h1>
+      <div id="status" class="searching">⟳ Scheibe suchen …</div>
+    </div>
+
+    <div id="controls">
+      <div id="score-row">
+        <div class="score-item">
+          <div class="score-val" id="score-hits">0</div>
+          <div class="score-lbl">Treffer</div>
+        </div>
+        <div class="score-item">
+          <div class="score-val" id="score-streak">0</div>
+          <div class="score-lbl">Streak</div>
+        </div>
+        <div class="score-item">
+          <div class="score-val" id="score-total">0</div>
+          <div class="score-lbl">Gesamt</div>
+        </div>
+      </div>
+
+      <div id="target-display">
+        <div id="target-label">Nächstes Ziel</div>
+        <div id="target-field">T20</div>
+      </div>
+
+      <div id="btn-row">
+        <button class="btn btn-secondary" id="btn-mode" onclick="App.toggleMode()">Modus: Zufällig</button>
+        <button class="btn btn-primary" onclick="App.nextTarget()">Weiter ▶</button>
+      </div>
+
+      <button class="btn btn-hit" onclick="App.registerHit()">✓ Treffer!</button>
+    </div>
+
+  </div>
+
+  <!-- ═══ A-FRAME AR SZENE ═══ -->
+  <a-scene
+    id="ar-scene"
+    class="hidden"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false;"
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity mindar-image-target="targetIndex: 0" id="ar-anchor">
+
+      <!-- Äußerer Pulsring -->
+      <a-ring id="ring-outer"
+        color="#ff4d00"
+        radius-inner="0.38" radius-outer="0.42"
+        opacity="0.85" position="0 0 0.001"
+        animation="property: opacity; from: 0.3; to: 0.9; dur: 900; dir: alternate; loop: true; easing: easeInOutSine">
+      </a-ring>
+
+      <!-- Mittlerer Ring -->
+      <a-ring id="ring-mid"
+        color="#ffbb00"
+        radius-inner="0.22" radius-outer="0.25"
+        opacity="0.7" position="0 0 0.001"
+        animation="property: opacity; from: 0.2; to: 0.8; dur: 700; dir: alternate; loop: true; easing: easeInOutSine; delay: 200">
+      </a-ring>
+
+      <!-- Bull-Punkt -->
+      <a-circle id="ar-bull"
+        color="#ff4d00" radius="0.07" opacity="0.9" position="0 0 0.001"
+        animation="property: scale; from: 0.8 0.8 0.8; to: 1.1 1.1 1.1; dur: 800; dir: alternate; loop: true">
+      </a-circle>
+
+      <!-- Zielfeld-Text -->
+      <a-text id="ar-target-text"
+        value="T20" color="#ffffff" align="center" width="1.2"
+        position="0 0.58 0.01"
+        animation="property: scale; from: 0.9 0.9 0.9; to: 1.05 1.05 1.05; dur: 1000; dir: alternate; loop: true">
+      </a-text>
+
+      <!-- Sektor-Highlight (rotiert je nach Zielfeld) -->
+      <a-entity id="sector-highlight">
+        <a-entity
+          geometry="primitive: cone; radiusBottom: 0.39; radiusTop: 0.01; height: 0.01; thetaStart: -9; thetaLength: 18; openEnded: true"
+          material="color: #ff4d00; opacity: 0.35; side: double"
+          rotation="-90 0 0"
+          position="0 0.195 0">
+        </a-entity>
+      </a-entity>
+
+      <!-- Glow-Hintergrund -->
+      <a-plane color="#ff4d00" opacity="0.04" width="0.95" height="0.95" position="0 0 -0.005"></a-plane>
+
+    </a-entity>
+  </a-scene>
+
+  <script src="app.js"></script>
+
+  <script>
+    // PWA Service Worker registrieren
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker registriert'))
+        .catch(err => console.warn('SW Fehler:', err));
+    }
+  </script>
+
+</body>
+</html>
