@@ -131,8 +131,27 @@ const App = (() => {
   }
 
   // ── AR starten ───────────────────────────────────────────────────
-  function start() {
+  async function start() {
     if (state.started) return;
+
+    const statusEl = el.status();
+
+    // Schritt 1: Kamera explizit anfragen (wichtig für Samsung Internet)
+    try {
+      if (statusEl) { statusEl.textContent = '📷 Kamera wird gestartet …'; statusEl.className = 'searching'; }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+
+      // Stream sofort wieder stoppen – MindAR startet seine eigene Kamera
+      stream.getTracks().forEach(track => track.stop());
+
+    } catch (err) {
+      console.error('Kamera-Fehler:', err);
+      if (statusEl) { statusEl.textContent = '❌ Kamera verweigert – bitte freigeben'; statusEl.className = 'searching'; }
+      alert('Kamera-Zugriff wurde verweigert.\n\nBitte in den Browser-Einstellungen die Kamera für diese Seite freigeben und dann neu laden.');
+      return;
+    }
+
     state.started = true;
 
     el.setupScreen()?.classList.add('hidden');
