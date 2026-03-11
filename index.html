@@ -32,11 +32,17 @@
       padding:14px 30px; font-size:1rem; font-weight:bold;
       background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer;
     }
+    #debug {
+      position:fixed; top:60px; left:10px; z-index:10;
+      color:#fff; font-size:0.75rem; background:rgba(0,0,0,0.6);
+      padding:6px 10px; border-radius:8px;
+    }
   </style>
 </head>
 <body>
   <video id="video" autoplay playsinline muted></video>
   <canvas id="c"></canvas>
+  <div id="debug">Pixel: 0</div>
   <div id="ui">
     <div id="status">Bereit</div>
     <button onclick="startCamera()">Kamera starten</button>
@@ -47,8 +53,8 @@
     var c      = document.getElementById('c');
     var ctx    = c.getContext('2d');
     var status = document.getElementById('status');
+    var debug  = document.getElementById('debug');
 
-    // Letzter bekannter Ring
     var lastRing   = null;
     var lostFrames = 0;
     var KEEP_FRAMES = 8;
@@ -69,7 +75,6 @@
           c.height = window.innerHeight;
           ctx.clearRect(0, 0, c.width, c.height);
 
-          // Bild in Hilfs-Canvas fuer Analyse
           var tmp = document.createElement('canvas');
           tmp.width = 320; tmp.height = 240;
           var tctx = tmp.getContext('2d');
@@ -91,7 +96,6 @@
             }
           }
 
-          // Overlay zeichnen
           if(lastRing) {
             var sx = c.width  / 320;
             var sy = c.height / 240;
@@ -99,20 +103,17 @@
             var cy = lastRing.cy * sy;
             var r  = lastRing.r  * ((sx + sy) / 2);
 
-            // Erkannter Ring
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0, Math.PI*2);
             ctx.strokeStyle = '#00ffaa';
             ctx.lineWidth   = 3;
             ctx.stroke();
 
-            // Bull-Eye
             ctx.beginPath();
             ctx.arc(cx, cy, 8, 0, Math.PI*2);
             ctx.fillStyle = '#ff4d00';
             ctx.fill();
 
-            // Bull Text
             ctx.font        = 'bold 20px sans-serif';
             ctx.fillStyle   = '#ffffff';
             ctx.textAlign   = 'center';
@@ -135,13 +136,20 @@
 
       for(var i = 0; i < data.length; i += 4) {
         var r = data[i], g = data[i+1], b = data[i+2];
-        if(b > 100 && b > r * 1.5 && b > g * 1.5) {
+        // Strengere Bedingungen:
+        // - B muss > 120 sein (kraeftiges Blau)
+        // - B muss mindestens doppelt so gross wie R und G sein
+        // - R und G duerfen nicht zu hoch sein (kein Weiss/Grau)
+        if(b > 120 && b > r * 2.0 && b > g * 2.0 && r < 100 && g < 100) {
           var idx = i / 4;
           bluePixels.push({ x: idx % w, y: Math.floor(idx / w) });
         }
       }
 
-      if(bluePixels.length < 50) return null;
+      debug.textContent = 'Blaue Pixel: ' + bluePixels.length;
+
+      // Mindestens 200 blaue Pixel noetig
+      if(bluePixels.length < 200) return null;
 
       // Mittelpunkt
       var sumX = 0, sumY = 0;
@@ -157,7 +165,20 @@
       });
       var radius = sumR / bluePixels.length;
 
-      if(radius < 10) return null;
+      if(radius < 20) return null;
+
+      // Kreisform pruefen: Pixel muessen gleichmaessig verteilt sein
+      // Standardabweichung des Radius berechnen
+      var sumDiff = 0;
+      bluePixels.forEach(function(p) {
+        var dx = p.x - cx, dy = p.y - cy;
+        var r = Math.sqrt(dx*dx + dy*dy);
+        sumDiff += Math.abs(r - radius);
+      });
+      var avgDiff = sumDiff / bluePixels.length;
+
+      // Wenn Pixel zu weit vom Kreis abweichen -> kein Ring
+      if(avgDiff > radius * 0.5) return null;
 
       return { cx:cx, cy:cy, r:radius };
     }
