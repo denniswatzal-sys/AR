@@ -1,19 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>AR Test</title>
-  <style>body{margin:0;overflow:hidden;}</style>
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.0/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AR Kamera Test 2</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    #video {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      object-fit:cover;
+    }
+    #canvas {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      pointer-events:none;
+    }
+    #ui {
+      position:fixed; bottom:0; left:0; right:0;
+      padding:20px;
+      background:linear-gradient(transparent, rgba(0,0,0,0.8));
+      color:#fff;
+      text-align:center;
+      font-family:sans-serif;
+    }
+    #status { font-size:1rem; margin-bottom:10px; color:#ffbb00; }
+    button {
+      padding:14px 30px; font-size:1rem; font-weight:bold;
+      background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer;
+    }
+  </style>
 </head>
 <body>
-  <a-scene embedded arjs vr-mode-ui="enabled:false">
-    <a-marker preset="hiro">
-      <a-box position="0 0.5 0" material="color:#ff4d00;"></a-box>
-    </a-marker>
-    <a-entity camera></a-entity>
-  </a-scene>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <div id="ui">
+    <div id="status">Kamera wird gestartet...</div>
+    <button onclick="startCamera()">Kamera starten</button>
+  </div>
+
+  <script>
+    var video   = document.getElementById('video');
+    var canvas  = document.getElementById('canvas');
+    var ctx     = canvas.getContext('2d');
+    var status  = document.getElementById('status');
+
+    // Canvas immer an Bildschirmgroesse anpassen
+    function resizeCanvas() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Demo-Animation: Pulsierender Kreis in der Mitte
+    // (spaeter wird das durch echte Marker-Erkennung ersetzt)
+    var pulse = 0;
+    function drawOverlay() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      var cx = canvas.width  / 2;
+      var cy = canvas.height / 2;
+      var r  = 80 + Math.sin(pulse) * 20;
+
+      // Aeusserer Ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 77, 0, 0.8)';
+      ctx.lineWidth   = 4;
+      ctx.stroke();
+
+      // Innerer Ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 187, 0, 0.6)';
+      ctx.lineWidth   = 3;
+      ctx.stroke();
+
+      // Mitte
+      ctx.beginPath();
+      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 77, 0, 0.9)';
+      ctx.fill();
+
+      // Text
+      ctx.font        = 'bold 28px sans-serif';
+      ctx.fillStyle   = '#ffffff';
+      ctx.textAlign   = 'center';
+      ctx.fillText('T20', cx, cy - r - 16);
+
+      pulse += 0.05;
+      requestAnimationFrame(drawOverlay);
+    }
+
+    async function startCamera() {
+      try {
+        status.textContent = 'Kamera wird verbunden...';
+        var stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        video.srcObject = stream;
+        status.textContent = 'Kamera aktiv - Overlay wird angezeigt!';
+        status.style.color = '#00ffaa';
+        document.querySelector('button').style.display = 'none';
+
+        // Overlay-Animation starten
+        drawOverlay();
+
+      } catch(err) {
+        status.textContent = 'Fehler: ' + err.name + ' - ' + err.message;
+        status.style.color = '#ff4d00';
+        console.error(err);
+      }
+    }
+  </script>
 </body>
 </html>
