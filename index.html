@@ -3,73 +3,153 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Blauer Ring Test</title>
+  <title>Dart AR - Ring Erkennung</title>
   <style>
     * { margin:0; padding:0; }
-    body { background:#111; color:#fff; font-family:sans-serif; text-align:center; padding:20px; }
-    h2 { color:#ff4d00; margin-bottom:10px; }
-    canvas { max-width:100%; border:2px solid #333; display:block; margin:10px auto; }
-    #status { padding:10px; background:#222; border-radius:8px; margin:10px 0; font-size:0.9rem; color:#ffbb00; }
-    #status.found { color:#00ffaa; }
+    body { background:#000; overflow:hidden; font-family:sans-serif; }
+    #video {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      object-fit:cover; z-index:1;
+    }
+    #c {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      z-index:2;
+    }
+    #ui {
+      position:fixed; bottom:20px; left:0; right:0;
+      text-align:center; z-index:10;
+    }
+    #status {
+      display:inline-block; padding:8px 20px; border-radius:20px;
+      background:rgba(0,0,0,0.7); color:#ffbb00; font-size:1rem;
+      border:1px solid rgba(255,187,0,0.4);
+    }
+    #status.found { color:#00ffaa; border-color:rgba(0,255,170,0.4); }
+    button {
+      display:block; margin:10px auto 0;
+      padding:14px 30px; font-size:1rem; font-weight:bold;
+      background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer;
+    }
   </style>
 </head>
 <body>
-  <h2>Blauer Ring Erkennung</h2>
-  <div id="status">Bild wird geladen...</div>
+  <video id="video" autoplay playsinline muted></video>
   <canvas id="c"></canvas>
+  <div id="ui">
+    <div id="status">Bereit</div>
+    <button onclick="startCamera()">Kamera starten</button>
+  </div>
 
   <script>
-    var canvas = document.getElementById('c');
-    var ctx    = canvas.getContext('2d');
+    var video  = document.getElementById('video');
+    var c      = document.getElementById('c');
+    var ctx    = c.getContext('2d');
     var status = document.getElementById('status');
 
-    var img = new Image();
-    img.onload = function() {
-      canvas.width  = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      status.textContent = 'Bild geladen - suche blauen Ring...';
-      detectBlueRing();
-    };
-    img.onerror = function() {
-      status.textContent = 'Fehler: Board.png nicht gefunden!';
-      status.style.color = '#ff0000';
-    };
-    img.src = 'Board.png';
+    // Letzter bekannter Ring
+    var lastRing   = null;
+    var lostFrames = 0;
+    var KEEP_FRAMES = 8;
 
-    function detectBlueRing() {
-      var w = canvas.width, h = canvas.height;
-      var imageData = ctx.getImageData(0, 0, w, h);
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight;
+
+    async function startCamera() {
+      try {
+        status.textContent = 'Kamera wird verbunden...';
+        var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+        video.srcObject = stream;
+        status.textContent = 'Blauen Ring vor Kamera halten...';
+        document.querySelector('button').style.display = 'none';
+
+        setInterval(function() {
+          c.width  = window.innerWidth;
+          c.height = window.innerHeight;
+          ctx.clearRect(0, 0, c.width, c.height);
+
+          // Bild in Hilfs-Canvas fuer Analyse
+          var tmp = document.createElement('canvas');
+          tmp.width = 320; tmp.height = 240;
+          var tctx = tmp.getContext('2d');
+          tctx.drawImage(video, 0, 0, 320, 240);
+          var imageData = tctx.getImageData(0, 0, 320, 240);
+          var ring = detectBlueRing(imageData, 320, 240);
+
+          if(ring) {
+            lastRing   = ring;
+            lostFrames = 0;
+            status.textContent = 'Ring erkannt!';
+            status.className   = 'found';
+          } else {
+            lostFrames++;
+            if(lostFrames > KEEP_FRAMES) {
+              lastRing = null;
+              status.textContent = 'Blauen Ring suchen...';
+              status.className   = '';
+            }
+          }
+
+          // Overlay zeichnen
+          if(lastRing) {
+            var sx = c.width  / 320;
+            var sy = c.height / 240;
+            var cx = lastRing.cx * sx;
+            var cy = lastRing.cy * sy;
+            var r  = lastRing.r  * ((sx + sy) / 2);
+
+            // Erkannter Ring
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI*2);
+            ctx.strokeStyle = '#00ffaa';
+            ctx.lineWidth   = 3;
+            ctx.stroke();
+
+            // Bull-Eye
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, Math.PI*2);
+            ctx.fillStyle = '#ff4d00';
+            ctx.fill();
+
+            // Bull Text
+            ctx.font        = 'bold 20px sans-serif';
+            ctx.fillStyle   = '#ffffff';
+            ctx.textAlign   = 'center';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur  = 6;
+            ctx.fillText('BULL', cx, cy - 14);
+            ctx.shadowBlur  = 0;
+          }
+        }, 150);
+
+      } catch(err) {
+        status.textContent = 'Fehler: ' + err.name;
+        status.style.color = '#ff0000';
+      }
+    }
+
+    function detectBlueRing(imageData, w, h) {
       var data = imageData.data;
-
-      // Alle blauen Pixel finden
       var bluePixels = [];
+
       for(var i = 0; i < data.length; i += 4) {
         var r = data[i], g = data[i+1], b = data[i+2];
-        // Blau: B deutlich hoeher als R und G
         if(b > 100 && b > r * 1.5 && b > g * 1.5) {
           var idx = i / 4;
-          var x = idx % w;
-          var y = Math.floor(idx / w);
-          bluePixels.push({ x:x, y:y });
+          bluePixels.push({ x: idx % w, y: Math.floor(idx / w) });
         }
       }
 
-      status.textContent = 'Blaue Pixel gefunden: ' + bluePixels.length;
+      if(bluePixels.length < 50) return null;
 
-      if(bluePixels.length < 100) {
-        status.textContent = 'Zu wenige blaue Pixel (' + bluePixels.length + ') - Farberkennung anpassen?';
-        status.style.color = '#ff4d00';
-        return;
-      }
-
-      // Mittelpunkt und Radius berechnen
+      // Mittelpunkt
       var sumX = 0, sumY = 0;
       bluePixels.forEach(function(p) { sumX += p.x; sumY += p.y; });
       var cx = sumX / bluePixels.length;
       var cy = sumY / bluePixels.length;
 
-      // Durchschnittlicher Radius
+      // Radius
       var sumR = 0;
       bluePixels.forEach(function(p) {
         var dx = p.x - cx, dy = p.y - cy;
@@ -77,28 +157,9 @@
       });
       var radius = sumR / bluePixels.length;
 
-      // Ergebnis anzeigen
-      status.textContent = 'Ring erkannt! Mitte: (' + Math.round(cx) + ',' + Math.round(cy) + ') Radius: ' + Math.round(radius) + 'px';
-      status.className = 'found';
+      if(radius < 10) return null;
 
-      // Erkannten Ring einzeichnen
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI*2);
-      ctx.strokeStyle = '#00ffaa';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      // Mittelpunkt markieren
-      ctx.beginPath();
-      ctx.arc(cx, cy, 8, 0, Math.PI*2);
-      ctx.fillStyle = '#ff4d00';
-      ctx.fill();
-
-      // Bull-Eye beschriften
-      ctx.font = 'bold 20px sans-serif';
-      ctx.fillStyle = '#ff4d00';
-      ctx.textAlign = 'center';
-      ctx.fillText('BULL', cx, cy - 14);
+      return { cx:cx, cy:cy, r:radius };
     }
   </script>
 </body>
