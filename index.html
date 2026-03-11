@@ -7,11 +7,22 @@
   <style>
     * { margin:0; padding:0; }
     body { background:#000; overflow:hidden; font-family:sans-serif; }
+
+    /* Video sichtbar aber hinter Canvas */
+    #video {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      object-fit:cover;
+      z-index:1;
+    }
+
+    /* Canvas darueber */
     #c {
       position:fixed; top:0; left:0;
       width:100vw; height:100vh;
-      display:block;
+      z-index:2;
     }
+
     #ui {
       position:fixed; bottom:20px; left:0; right:0;
       text-align:center; z-index:10;
@@ -30,7 +41,12 @@
   </style>
 </head>
 <body>
+  <!-- Video sichtbar im Hintergrund -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- Canvas transparent darueber fuer Overlay -->
   <canvas id="c"></canvas>
+
   <div id="ui">
     <div id="status">Bereit</div>
     <button onclick="startCamera()">Kamera starten</button>
@@ -39,73 +55,77 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
+    var video  = document.getElementById('video');
     var c      = document.getElementById('c');
     var ctx    = c.getContext('2d');
     var status = document.getElementById('status');
 
-    // Canvas-Groesse setzen
     c.width  = window.innerWidth;
     c.height = window.innerHeight;
 
     async function startCamera() {
       try {
         status.textContent = 'Kamera wird verbunden...';
-
         var stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' }
         });
+        video.srcObject = stream;
 
-        // Video unsichtbar - exakt wie im funktionierenden Test
-        var video = document.createElement('video');
-        video.srcObject   = stream;
-        video.autoplay    = true;
-        video.playsInline = true;
-        video.muted       = true;
-        video.style.display = 'none';   // <-- unsichtbar!
-        document.body.appendChild(video);
-
-        status.textContent = 'Kamera aktiv - QR-Code halten';
-        status.className   = 'found';
+        status.textContent = 'QR-Code vor Kamera halten...';
         document.querySelector('button').style.display = 'none';
 
+        // Nur Overlay auf Canvas zeichnen - kein drawImage noetig!
         setInterval(function() {
           c.width  = window.innerWidth;
           c.height = window.innerHeight;
 
-          // Video auf Canvas zeichnen
-          ctx.drawImage(video, 0, 0, c.width, c.height);
+          // Canvas leeren (transparent - Video scheint durch)
+          ctx.clearRect(0, 0, c.width, c.height);
 
-          // QR-Code suchen
-          var imageData = ctx.getImageData(0, 0, c.width, c.height);
-          var code = jsQR(imageData.data, imageData.width, imageData.height);
+          // Fuer QR-Erkennung brauchen wir Pixeldaten
+          // Kleinen Hilfs-Canvas im Hintergrund nutzen
+          var tmp = document.createElement('canvas');
+          tmp.width  = 640;
+          tmp.height = 480;
+          var tctx = tmp.getContext('2d');
+          tctx.drawImage(video, 0, 0, 640, 480);
+
+          var imageData = tctx.getImageData(0, 0, 640, 480);
+          var code = jsQR(imageData.data, 640, 480);
 
           if(code) {
+            // Koordinaten auf Bildschirmgroesse skalieren
+            var sx = c.width  / 640;
+            var sy = c.height / 480;
+
             var loc = code.location;
             ctx.beginPath();
-            ctx.moveTo(loc.topLeftCorner.x,     loc.topLeftCorner.y);
-            ctx.lineTo(loc.topRightCorner.x,    loc.topRightCorner.y);
-            ctx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
-            ctx.lineTo(loc.bottomLeftCorner.x,  loc.bottomLeftCorner.y);
+            ctx.moveTo(loc.topLeftCorner.x*sx,     loc.topLeftCorner.y*sy);
+            ctx.lineTo(loc.topRightCorner.x*sx,    loc.topRightCorner.y*sy);
+            ctx.lineTo(loc.bottomRightCorner.x*sx, loc.bottomRightCorner.y*sy);
+            ctx.lineTo(loc.bottomLeftCorner.x*sx,  loc.bottomLeftCorner.y*sy);
             ctx.closePath();
             ctx.strokeStyle = '#00ffaa';
             ctx.lineWidth   = 6;
             ctx.stroke();
 
-            ctx.font        = 'bold 28px sans-serif';
+            var cx = (loc.topLeftCorner.x + loc.topRightCorner.x) / 2 * sx;
+            var cy = loc.topLeftCorner.y * sy - 16;
+            ctx.font        = 'bold 32px sans-serif';
             ctx.fillStyle   = '#00ffaa';
             ctx.textAlign   = 'center';
             ctx.shadowColor = '#000';
             ctx.shadowBlur  = 8;
-            ctx.fillText('ERKANNT!',
-              (loc.topLeftCorner.x + loc.topRightCorner.x) / 2,
-              loc.topLeftCorner.y - 12);
+            ctx.fillText('ERKANNT!', cx, cy);
             ctx.shadowBlur  = 0;
 
             status.textContent = 'QR-Code erkannt!';
+            status.className   = 'found';
           } else {
             status.textContent = 'QR-Code vor Kamera halten...';
+            status.className   = '';
           }
-        }, 100);
+        }, 150);
 
       } catch(err) {
         status.textContent = 'Fehler: ' + err.name;
