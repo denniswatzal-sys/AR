@@ -13,10 +13,8 @@
       text-align:center; z-index:10;
     }
     #status {
-      display:inline-block;
-      padding:8px 20px; border-radius:20px;
-      background:rgba(0,0,0,0.7);
-      color:#ffbb00; font-size:1rem;
+      display:inline-block; padding:8px 20px; border-radius:20px;
+      background:rgba(0,0,0,0.7); color:#ffbb00; font-size:1rem;
       border:1px solid rgba(255,187,0,0.4);
     }
     #status.found { color:#00ffaa; border-color:rgba(0,255,170,0.4); }
@@ -30,97 +28,82 @@
 <body>
   <canvas id="c"></canvas>
   <div id="ui">
-    <div id="status">Kamera starten</div>
-    <button onclick="start()">Starten</button>
+    <div id="status">Bereit</div>
+    <button onclick="startCamera()">Kamera starten</button>
   </div>
 
-  <!-- jsQR: einzelne JS-Datei fuer QR-Code Erkennung -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
     var c      = document.getElementById('c');
     var ctx    = c.getContext('2d');
     var status = document.getElementById('status');
-    var video, scanning = false;
 
     c.width  = window.innerWidth;
     c.height = window.innerHeight;
 
-    window.addEventListener('resize', function() {
-      c.width  = window.innerWidth;
-      c.height = window.innerHeight;
-    });
-
-    async function start() {
-      document.querySelector('button').style.display = 'none';
-      status.textContent = 'Kamera wird gestartet...';
-
+    // Exakt wie der funktionierende Test
+    async function startCamera() {
       try {
+        status.textContent = 'Kamera wird verbunden...';
         var stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode:'environment' }
+          video: { facingMode: 'environment' }
         });
-        video = document.createElement('video');
+
+        var video = document.createElement('video');
         video.srcObject   = stream;
         video.autoplay    = true;
         video.playsInline = true;
         video.muted       = true;
-        video.style.display = 'none';
         document.body.appendChild(video);
 
-        video.onplay = function() {
-          status.textContent = 'QR-Code vor die Kamera halten...';
-          scanning = true;
-          scan();
-        };
+        status.textContent = 'Kamera aktiv!';
+        status.style.color = '#00ffaa';
+        document.querySelector('button').style.display = 'none';
+
+        // Intervall wie im funktionierenden Test
+        setInterval(function() {
+          // Video auf Canvas
+          ctx.drawImage(video, 0, 0, c.width, c.height);
+
+          // QR-Code suchen
+          var imageData = ctx.getImageData(0, 0, c.width, c.height);
+          var code = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if(code) {
+            var loc = code.location;
+            ctx.beginPath();
+            ctx.moveTo(loc.topLeftCorner.x,     loc.topLeftCorner.y);
+            ctx.lineTo(loc.topRightCorner.x,    loc.topRightCorner.y);
+            ctx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
+            ctx.lineTo(loc.bottomLeftCorner.x,  loc.bottomLeftCorner.y);
+            ctx.closePath();
+            ctx.strokeStyle = '#00ffaa';
+            ctx.lineWidth   = 6;
+            ctx.stroke();
+
+            ctx.font      = 'bold 28px sans-serif';
+            ctx.fillStyle = '#00ffaa';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur  = 8;
+            ctx.fillText('ERKANNT!', 
+              (loc.topLeftCorner.x + loc.topRightCorner.x) / 2,
+              loc.topLeftCorner.y - 12);
+            ctx.shadowBlur = 0;
+
+            status.textContent = 'QR-Code erkannt!';
+            status.className   = 'found';
+          } else {
+            status.textContent = 'QR-Code vor Kamera halten...';
+            status.className   = '';
+          }
+        }, 100);
+
       } catch(err) {
         status.textContent = 'Fehler: ' + err.name;
+        status.style.color = '#ff0000';
       }
-    }
-
-    function scan() {
-      if(!scanning) return;
-
-      // Video auf Canvas zeichnen
-      c.width  = window.innerWidth;
-      c.height = window.innerHeight;
-      ctx.drawImage(video, 0, 0, c.width, c.height);
-
-      // QR-Code im Bild suchen
-      var imageData = ctx.getImageData(0, 0, c.width, c.height);
-      var code = jsQR(imageData.data, imageData.width, imageData.height);
-
-      if(code) {
-        // QR-Code gefunden! Rahmen zeichnen
-        var loc = code.location;
-        ctx.beginPath();
-        ctx.moveTo(loc.topLeftCorner.x,     loc.topLeftCorner.y);
-        ctx.lineTo(loc.topRightCorner.x,    loc.topRightCorner.y);
-        ctx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
-        ctx.lineTo(loc.bottomLeftCorner.x,  loc.bottomLeftCorner.y);
-        ctx.closePath();
-        ctx.strokeStyle = '#00ffaa';
-        ctx.lineWidth   = 4;
-        ctx.stroke();
-
-        // Text darueber
-        var cx = (loc.topLeftCorner.x + loc.topRightCorner.x) / 2;
-        var cy = loc.topLeftCorner.y - 16;
-        ctx.font      = 'bold 24px sans-serif';
-        ctx.fillStyle = '#00ffaa';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur  = 6;
-        ctx.fillText('ERKANNT: ' + code.data.substring(0,20), cx, cy);
-        ctx.shadowBlur = 0;
-
-        status.textContent = 'QR-Code erkannt!';
-        status.className   = 'found';
-      } else {
-        status.textContent = 'Suche QR-Code...';
-        status.className   = '';
-      }
-
-      setTimeout(scan, 100);
     }
   </script>
 </body>
