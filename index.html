@@ -3,130 +3,102 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Marker Test</title>
+  <title>Blauer Ring Test</title>
   <style>
     * { margin:0; padding:0; }
-    body { background:#000; overflow:hidden; font-family:sans-serif; }
-    #video {
-      position:fixed; top:0; left:0;
-      width:100vw; height:100vh;
-      object-fit:cover; z-index:1;
-    }
-    #c {
-      position:fixed; top:0; left:0;
-      width:100vw; height:100vh;
-      z-index:2;
-    }
-    #ui {
-      position:fixed; bottom:20px; left:0; right:0;
-      text-align:center; z-index:10;
-    }
-    #status {
-      display:inline-block; padding:8px 20px; border-radius:20px;
-      background:rgba(0,0,0,0.7); color:#ffbb00; font-size:1rem;
-      border:1px solid rgba(255,187,0,0.4);
-    }
-    #status.found { color:#00ffaa; border-color:rgba(0,255,170,0.4); }
-    button {
-      display:block; margin:10px auto 0;
-      padding:14px 30px; font-size:1rem; font-weight:bold;
-      background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer;
-    }
+    body { background:#111; color:#fff; font-family:sans-serif; text-align:center; padding:20px; }
+    h2 { color:#ff4d00; margin-bottom:10px; }
+    canvas { max-width:100%; border:2px solid #333; display:block; margin:10px auto; }
+    #status { padding:10px; background:#222; border-radius:8px; margin:10px 0; font-size:0.9rem; color:#ffbb00; }
+    #status.found { color:#00ffaa; }
   </style>
 </head>
 <body>
-  <video id="video" autoplay playsinline muted></video>
+  <h2>Blauer Ring Erkennung</h2>
+  <div id="status">Bild wird geladen...</div>
   <canvas id="c"></canvas>
-  <div id="ui">
-    <div id="status">Bereit</div>
-    <button onclick="startCamera()">Kamera starten</button>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
-    var video  = document.getElementById('video');
-    var c      = document.getElementById('c');
-    var ctx    = c.getContext('2d');
+    var canvas = document.getElementById('c');
+    var ctx    = canvas.getContext('2d');
     var status = document.getElementById('status');
 
-    c.width  = window.innerWidth;
-    c.height = window.innerHeight;
+    var img = new Image();
+    img.onload = function() {
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      status.textContent = 'Bild geladen - suche blauen Ring...';
+      detectBlueRing();
+    };
+    img.onerror = function() {
+      status.textContent = 'Fehler: Board.png nicht gefunden!';
+      status.style.color = '#ff0000';
+    };
+    img.src = 'Board.png';
 
-    // Letzter bekannter Marker + Countdown
-    var lastLoc    = null;
-    var lostFrames = 0;
-    var KEEP_FRAMES = 8; // Overlay bleibt 8 Frames sichtbar nach Verlust
+    function detectBlueRing() {
+      var w = canvas.width, h = canvas.height;
+      var imageData = ctx.getImageData(0, 0, w, h);
+      var data = imageData.data;
 
-    async function startCamera() {
-      try {
-        status.textContent = 'Kamera wird verbunden...';
-        var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
-        video.srcObject = stream;
-        status.textContent = 'QR-Code vor Kamera halten...';
-        document.querySelector('button').style.display = 'none';
-
-        setInterval(function() {
-          c.width  = window.innerWidth;
-          c.height = window.innerHeight;
-          ctx.clearRect(0, 0, c.width, c.height);
-
-          // QR-Erkennung auf Hilfs-Canvas
-          var tmp  = document.createElement('canvas');
-          tmp.width = 640; tmp.height = 480;
-          var tctx = tmp.getContext('2d');
-          tctx.drawImage(video, 0, 0, 640, 480);
-          var imageData = tctx.getImageData(0, 0, 640, 480);
-          var code = jsQR(imageData.data, 640, 480);
-
-          if(code) {
-            lastLoc    = code.location;
-            lostFrames = 0;
-            status.textContent = 'QR-Code erkannt!';
-            status.className   = 'found';
-          } else {
-            lostFrames++;
-            if(lostFrames > KEEP_FRAMES) {
-              lastLoc = null;
-              status.textContent = 'QR-Code vor Kamera halten...';
-              status.className   = '';
-            }
-          }
-
-          // Overlay zeichnen wenn Marker bekannt
-          if(lastLoc) {
-            var sx = c.width  / 640;
-            var sy = c.height / 480;
-            var loc = lastLoc;
-
-            // Gruener Rahmen
-            ctx.beginPath();
-            ctx.moveTo(loc.topLeftCorner.x*sx,     loc.topLeftCorner.y*sy);
-            ctx.lineTo(loc.topRightCorner.x*sx,    loc.topRightCorner.y*sy);
-            ctx.lineTo(loc.bottomRightCorner.x*sx, loc.bottomRightCorner.y*sy);
-            ctx.lineTo(loc.bottomLeftCorner.x*sx,  loc.bottomLeftCorner.y*sy);
-            ctx.closePath();
-            ctx.strokeStyle = '#00ffaa';
-            ctx.lineWidth   = 6;
-            ctx.stroke();
-
-            // Text
-            var cx = (loc.topLeftCorner.x + loc.topRightCorner.x) / 2 * sx;
-            var cy = loc.topLeftCorner.y * sy - 16;
-            ctx.font        = 'bold 32px sans-serif';
-            ctx.fillStyle   = '#00ffaa';
-            ctx.textAlign   = 'center';
-            ctx.shadowColor = '#000';
-            ctx.shadowBlur  = 8;
-            ctx.fillText('ERKANNT!', cx, cy);
-            ctx.shadowBlur  = 0;
-          }
-        }, 150);
-
-      } catch(err) {
-        status.textContent = 'Fehler: ' + err.name;
-        status.style.color = '#ff0000';
+      // Alle blauen Pixel finden
+      var bluePixels = [];
+      for(var i = 0; i < data.length; i += 4) {
+        var r = data[i], g = data[i+1], b = data[i+2];
+        // Blau: B deutlich hoeher als R und G
+        if(b > 100 && b > r * 1.5 && b > g * 1.5) {
+          var idx = i / 4;
+          var x = idx % w;
+          var y = Math.floor(idx / w);
+          bluePixels.push({ x:x, y:y });
+        }
       }
+
+      status.textContent = 'Blaue Pixel gefunden: ' + bluePixels.length;
+
+      if(bluePixels.length < 100) {
+        status.textContent = 'Zu wenige blaue Pixel (' + bluePixels.length + ') - Farberkennung anpassen?';
+        status.style.color = '#ff4d00';
+        return;
+      }
+
+      // Mittelpunkt und Radius berechnen
+      var sumX = 0, sumY = 0;
+      bluePixels.forEach(function(p) { sumX += p.x; sumY += p.y; });
+      var cx = sumX / bluePixels.length;
+      var cy = sumY / bluePixels.length;
+
+      // Durchschnittlicher Radius
+      var sumR = 0;
+      bluePixels.forEach(function(p) {
+        var dx = p.x - cx, dy = p.y - cy;
+        sumR += Math.sqrt(dx*dx + dy*dy);
+      });
+      var radius = sumR / bluePixels.length;
+
+      // Ergebnis anzeigen
+      status.textContent = 'Ring erkannt! Mitte: (' + Math.round(cx) + ',' + Math.round(cy) + ') Radius: ' + Math.round(radius) + 'px';
+      status.className = 'found';
+
+      // Erkannten Ring einzeichnen
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI*2);
+      ctx.strokeStyle = '#00ffaa';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Mittelpunkt markieren
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI*2);
+      ctx.fillStyle = '#ff4d00';
+      ctx.fill();
+
+      // Bull-Eye beschriften
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillStyle = '#ff4d00';
+      ctx.textAlign = 'center';
+      ctx.fillText('BULL', cx, cy - 14);
     }
   </script>
 </body>
