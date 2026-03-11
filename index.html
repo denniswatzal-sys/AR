@@ -3,30 +3,37 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AR Kamera Test 2</title>
+  <title>AR Test</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
+
     #video {
       position:fixed; top:0; left:0;
       width:100vw; height:100vh;
       object-fit:cover;
+      z-index:1;
     }
+
     #canvas {
       position:fixed; top:0; left:0;
       width:100vw; height:100vh;
-      pointer-events:none; z-index:10;
+      z-index:2;
     }
+
     #ui {
       position:fixed; bottom:0; left:0; right:0;
+      z-index:3;
       padding:20px;
       background:linear-gradient(transparent, rgba(0,0,0,0.8));
       color:#fff;
       text-align:center;
       font-family:sans-serif;
     }
+
     #status { font-size:1rem; margin-bottom:10px; color:#ffbb00; }
-    button {
+
+    #btn {
       padding:14px 30px; font-size:1rem; font-weight:bold;
       background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer;
     }
@@ -37,61 +44,62 @@
   <canvas id="canvas"></canvas>
 
   <div id="ui">
-    <div id="status">Kamera wird gestartet...</div>
-    <button onclick="startCamera()">Kamera starten</button>
+    <div id="status">Bereit</div>
+    <button id="btn" onclick="startCamera()">Kamera starten</button>
   </div>
 
   <script>
-    var video   = document.getElementById('video');
-    var canvas  = document.getElementById('canvas');
-    var ctx     = canvas.getContext('2d');
-    var status  = document.getElementById('status');
+    var video  = document.getElementById('video');
+    var canvas = document.getElementById('canvas');
+    var ctx    = canvas.getContext('2d');
+    var status = document.getElementById('status');
+    var pulse  = 0;
 
-    // Canvas immer an Bildschirmgroesse anpassen
-    function resizeCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', function() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    });
 
-    // Demo-Animation: Pulsierender Kreis in der Mitte
-    // (spaeter wird das durch echte Marker-Erkennung ersetzt)
-    var pulse = 0;
     function drawOverlay() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       var cx = canvas.width  / 2;
       var cy = canvas.height / 2;
-      var r  = 80 + Math.sin(pulse) * 20;
+      var r  = 100 + Math.sin(pulse) * 15;
 
       // Aeusserer Ring
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 77, 0, 0.8)';
-      ctx.lineWidth   = 4;
+      ctx.strokeStyle = '#ff4d00';
+      ctx.lineWidth = 6;
       ctx.stroke();
 
       // Innerer Ring
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 187, 0, 0.6)';
-      ctx.lineWidth   = 3;
+      ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffbb00';
+      ctx.lineWidth = 4;
       ctx.stroke();
 
-      // Mitte
+      // Mittelpunkt
       ctx.beginPath();
-      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 77, 0, 0.9)';
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff4d00';
       ctx.fill();
 
       // Text
-      ctx.font        = 'bold 28px sans-serif';
-      ctx.fillStyle   = '#ffffff';
-      ctx.textAlign   = 'center';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#ff4d00';
+      ctx.shadowBlur = 10;
       ctx.fillText('T20', cx, cy - r - 16);
+      ctx.shadowBlur = 0;
 
-      pulse += 0.05;
+      pulse += 0.04;
       requestAnimationFrame(drawOverlay);
     }
 
@@ -99,20 +107,16 @@
       try {
         status.textContent = 'Kamera wird verbunden...';
         var stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { facingMode: 'environment' }
         });
         video.srcObject = stream;
-        status.textContent = 'Kamera aktiv - Overlay wird angezeigt!';
+        status.textContent = 'Overlay aktiv!';
         status.style.color = '#00ffaa';
-        document.querySelector('button').style.display = 'none';
-
-        // Overlay-Animation starten
+        document.getElementById('btn').style.display = 'none';
         drawOverlay();
-
       } catch(err) {
-        status.textContent = 'Fehler: ' + err.name + ' - ' + err.message;
+        status.textContent = 'Fehler: ' + err.name;
         status.style.color = '#ff4d00';
-        console.error(err);
       }
     }
   </script>
