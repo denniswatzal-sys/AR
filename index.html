@@ -3,100 +3,114 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Canvas Test</title>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>Dart AR Trainer</title>
+  <link rel="manifest" href="manifest.json"/>
   <style>
-    * { margin:0; padding:0; }
-    body { background:#000; overflow:hidden; }
-    canvas { display:block; }
-    #ui {
-      position:fixed; bottom:20px; left:0; right:0;
-      text-align:center; font-family:sans-serif;
-      z-index:10;
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; font-family:'Segoe UI',sans-serif; }
+
+    canvas { display:block; width:100vw; height:100vh; }
+
+    #header {
+      position:fixed; top:0; left:0; right:0; z-index:10;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px;
+      background:linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+      pointer-events:none;
     }
-    #status { color:#ffbb00; font-size:1rem; margin-bottom:10px; }
-    button { padding:14px 30px; font-size:1rem; font-weight:bold; background:#ff4d00; color:#fff; border:none; border-radius:10px; }
+    #header h1 {
+      font-size:1.05rem; font-weight:800; letter-spacing:1.5px;
+      color:#ff4d00; text-shadow:0 0 14px rgba(255,77,0,0.5);
+    }
+    #status {
+      font-size:0.72rem; padding:4px 12px; border-radius:20px;
+      background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14);
+      color:rgba(255,255,255,0.4);
+    }
+    #status.active { color:#00ffaa; border-color:rgba(0,255,170,0.35); background:rgba(0,255,170,0.08); }
+
+    #controls {
+      position:fixed; bottom:0; left:0; right:0; z-index:10;
+      padding:16px 20px 36px;
+      background:linear-gradient(to top, rgba(0,0,0,0.88), transparent);
+      display:flex; flex-direction:column; align-items:center; gap:12px;
+    }
+
+    #score-row { display:flex; gap:28px; }
+    .score-item { text-align:center; }
+    .score-val { font-size:1.5rem; font-weight:900; color:#fff; line-height:1; }
+    .score-lbl { font-size:0.58rem; letter-spacing:1.8px; text-transform:uppercase; color:rgba(255,255,255,0.4); margin-top:2px; }
+
+    #target-display { text-align:center; }
+    #target-label { font-size:0.65rem; letter-spacing:2.5px; text-transform:uppercase; color:rgba(255,255,255,0.4); margin-bottom:3px; }
+    #target-field {
+      font-size:3rem; font-weight:900; color:#ff4d00;
+      text-shadow:0 0 30px rgba(255,77,0,0.6);
+      transition:color 0.3s, transform 0.2s; line-height:1;
+    }
+    #target-field.hit { color:#00ffaa !important; text-shadow:0 0 40px rgba(0,255,170,0.8) !important; transform:scale(1.18); }
+
+    #btn-row { display:flex; gap:10px; }
+    .btn { padding:10px 20px; border-radius:10px; border:none; font-size:0.88rem; font-weight:700; cursor:pointer; transition:transform 0.15s; }
+    .btn:active { transform:scale(0.95); }
+    .btn-primary { background:#ff4d00; color:#fff; box-shadow:0 4px 18px rgba(255,77,0,0.4); }
+    .btn-secondary { background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.18); }
+    .btn-hit { width:100%; max-width:280px; padding:13px; background:rgba(0,255,170,0.12); color:#00ffaa; border:1px solid rgba(0,255,170,0.3); font-size:0.95rem; font-weight:700; border-radius:14px; cursor:pointer; }
+    .btn-hit:active { background:rgba(0,255,170,0.25); transform:scale(0.97); }
+
+    #start-screen {
+      position:fixed; inset:0; z-index:20;
+      background:#0a0a0f;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:16px; padding:30px;
+    }
+    .start-icon { font-size:3rem; }
+    .start-title { font-size:1.8rem; font-weight:800; color:#ff4d00; text-shadow:0 0 30px rgba(255,77,0,0.4); }
+    .start-sub { font-size:0.9rem; color:rgba(255,255,255,0.4); text-align:center; }
+    #btn-start { padding:16px 40px; background:#ff4d00; color:#fff; border:none; border-radius:14px; font-size:1rem; font-weight:800; cursor:pointer; box-shadow:0 6px 30px rgba(255,77,0,0.4); }
   </style>
 </head>
 <body>
-  <canvas id="c"></canvas>
-  <div id="ui">
-    <div id="status">Canvas laeuft...</div>
-    <button onclick="startCamera()">Kamera dazu</button>
+
+  <!-- Startscreen -->
+  <div id="start-screen">
+    <div class="start-icon">&#127919;</div>
+    <div class="start-title">Dart AR Trainer</div>
+    <div class="start-sub">Kamera auf die Dartscheibe richten.<br>Das Zielfeld wird eingeblendet.</div>
+    <button id="btn-start" onclick="App.start()">Starten</button>
   </div>
 
+  <!-- Kamera + Overlay -->
+  <canvas id="c"></canvas>
+
+  <!-- Header -->
+  <div id="header">
+    <h1>DART AR</h1>
+    <div id="status">Kamera aktiv</div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <div id="score-row">
+      <div class="score-item"><div class="score-val" id="score-hits">0</div><div class="score-lbl">Treffer</div></div>
+      <div class="score-item"><div class="score-val" id="score-streak">0</div><div class="score-lbl">Streak</div></div>
+      <div class="score-item"><div class="score-val" id="score-total">0</div><div class="score-lbl">Gesamt</div></div>
+    </div>
+    <div id="target-display">
+      <div id="target-label">Naechstes Ziel</div>
+      <div id="target-field">T20</div>
+    </div>
+    <div id="btn-row">
+      <button class="btn btn-secondary" id="btn-mode" onclick="App.toggleMode()">Modus: Zufaellig</button>
+      <button class="btn btn-primary" onclick="App.nextTarget()">Weiter</button>
+    </div>
+    <button class="btn btn-hit" onclick="App.registerHit()">Treffer!</button>
+  </div>
+
+  <script src="app.js"></script>
   <script>
-    var c   = document.getElementById('c');
-    var ctx = c.getContext('2d');
-
-    c.width  = window.innerWidth;
-    c.height = window.innerHeight;
-
-    // Sofort etwas zeichnen - OHNE Kamera
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, c.width, c.height);
-
-    ctx.beginPath();
-    ctx.arc(c.width/2, c.height/2, 100, 0, Math.PI*2);
-    ctx.strokeStyle = '#ff4d00';
-    ctx.lineWidth = 8;
-    ctx.stroke();
-
-    ctx.font = 'bold 40px sans-serif';
-    ctx.fillStyle = '#ff4d00';
-    ctx.textAlign = 'center';
-    ctx.fillText('T20', c.width/2, c.height/2 + 15);
-
-    document.getElementById('status').textContent = 'Siehst du den Kreis?';
-
-    async function startCamera() {
-      try {
-        var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
-        // Video als Canvas-Hintergrund zeichnen
-        var video = document.createElement('video');
-        video.srcObject = stream;
-        video.autoplay = true;
-        video.playsInline = true;
-        video.muted = true;
-        video.onplay = function() {
-          document.getElementById('status').textContent = 'Kamera + Overlay aktiv!';
-          document.getElementById('status').style.color = '#00ffaa';
-          document.querySelector('button').style.display = 'none';
-
-          var pulse = 0;
-          setInterval(function() {
-            // Video auf Canvas zeichnen
-            ctx.drawImage(video, 0, 0, c.width, c.height);
-
-            // Overlay drueber
-            var cx = c.width/2, cy = c.height/2;
-            var r = 100 + Math.sin(pulse) * 15;
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI*2);
-            ctx.strokeStyle = '#ff4d00';
-            ctx.lineWidth = 6;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, r*0.55, 0, Math.PI*2);
-            ctx.strokeStyle = '#ffbb00';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            ctx.font = 'bold 36px sans-serif';
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.fillText('T20', cx, cy - r - 10);
-
-            pulse += 0.08;
-          }, 33);
-        };
-        document.body.appendChild(video);
-      } catch(err) {
-        document.getElementById('status').textContent = 'Fehler: ' + err.name;
-        document.getElementById('status').style.color = '#ff0000';
-      }
-    }
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js').catch(function(){});
   </script>
 </body>
 </html>
