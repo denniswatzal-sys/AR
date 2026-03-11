@@ -3,37 +3,29 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kamera Test</title>
+  <title>AR Test</title>
   <style>
-    body { margin:0; background:#000; color:#fff; font-family:sans-serif; text-align:center; }
-    video { width:100vw; height:60vh; object-fit:cover; display:block; }
-    #msg { padding:20px; font-size:1.1rem; }
-    button { margin:10px; padding:15px 30px; font-size:1rem; background:#ff4d00; color:#fff; border:none; border-radius:10px; cursor:pointer; }
+    body { margin: 0; overflow: hidden; }
   </style>
+  <!-- A-Frame + AR.js -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
 </head>
 <body>
-  <div id="msg">Tippe auf den Button um die Kamera zu testen</div>
-  <video id="video" autoplay playsinline></video>
-  <br>
-  <button onclick="startCamera()">Kamera starten</button>
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+    vr-mode-ui="enabled: false"
+  >
 
-  <script>
-    async function startCamera() {
-      var msg = document.getElementById('msg');
-      try {
-        msg.textContent = 'Kamera wird gestartet...';
-        var stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
-        document.getElementById('video').srcObject = stream;
-        msg.textContent = 'Kamera funktioniert!';
-        msg.style.color = '#00ffaa';
-      } catch(err) {
-        msg.textContent = 'FEHLER: ' + err.name + ' - ' + err.message;
-        msg.style.color = '#ff4d00';
-        console.error(err);
-      }
-    }
-  </script>
+    <!-- Marker: Hiro ist der Standard-Testmarker von AR.js -->
+    <a-marker preset="hiro">
+      <!-- Roter Wuerfel ueber dem Marker -->
+      <a-box position="0 0.5 0" color="#ff4d00" scale="1 1 1"></a-box>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+
+  </a-scene>
 </body>
 </html>
