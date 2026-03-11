@@ -7,22 +7,16 @@
   <style>
     * { margin:0; padding:0; }
     body { background:#000; overflow:hidden; font-family:sans-serif; }
-
-    /* Video sichtbar aber hinter Canvas */
     #video {
       position:fixed; top:0; left:0;
       width:100vw; height:100vh;
-      object-fit:cover;
-      z-index:1;
+      object-fit:cover; z-index:1;
     }
-
-    /* Canvas darueber */
     #c {
       position:fixed; top:0; left:0;
       width:100vw; height:100vh;
       z-index:2;
     }
-
     #ui {
       position:fixed; bottom:20px; left:0; right:0;
       text-align:center; z-index:10;
@@ -41,12 +35,8 @@
   </style>
 </head>
 <body>
-  <!-- Video sichtbar im Hintergrund -->
   <video id="video" autoplay playsinline muted></video>
-
-  <!-- Canvas transparent darueber fuer Overlay -->
   <canvas id="c"></canvas>
-
   <div id="ui">
     <div id="status">Bereit</div>
     <button onclick="startCamera()">Kamera starten</button>
@@ -63,42 +53,53 @@
     c.width  = window.innerWidth;
     c.height = window.innerHeight;
 
+    // Letzter bekannter Marker + Countdown
+    var lastLoc    = null;
+    var lostFrames = 0;
+    var KEEP_FRAMES = 8; // Overlay bleibt 8 Frames sichtbar nach Verlust
+
     async function startCamera() {
       try {
         status.textContent = 'Kamera wird verbunden...';
-        var stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
+        var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
         video.srcObject = stream;
-
         status.textContent = 'QR-Code vor Kamera halten...';
         document.querySelector('button').style.display = 'none';
 
-        // Nur Overlay auf Canvas zeichnen - kein drawImage noetig!
         setInterval(function() {
           c.width  = window.innerWidth;
           c.height = window.innerHeight;
-
-          // Canvas leeren (transparent - Video scheint durch)
           ctx.clearRect(0, 0, c.width, c.height);
 
-          // Fuer QR-Erkennung brauchen wir Pixeldaten
-          // Kleinen Hilfs-Canvas im Hintergrund nutzen
-          var tmp = document.createElement('canvas');
-          tmp.width  = 640;
-          tmp.height = 480;
+          // QR-Erkennung auf Hilfs-Canvas
+          var tmp  = document.createElement('canvas');
+          tmp.width = 640; tmp.height = 480;
           var tctx = tmp.getContext('2d');
           tctx.drawImage(video, 0, 0, 640, 480);
-
           var imageData = tctx.getImageData(0, 0, 640, 480);
           var code = jsQR(imageData.data, 640, 480);
 
           if(code) {
-            // Koordinaten auf Bildschirmgroesse skalieren
+            lastLoc    = code.location;
+            lostFrames = 0;
+            status.textContent = 'QR-Code erkannt!';
+            status.className   = 'found';
+          } else {
+            lostFrames++;
+            if(lostFrames > KEEP_FRAMES) {
+              lastLoc = null;
+              status.textContent = 'QR-Code vor Kamera halten...';
+              status.className   = '';
+            }
+          }
+
+          // Overlay zeichnen wenn Marker bekannt
+          if(lastLoc) {
             var sx = c.width  / 640;
             var sy = c.height / 480;
+            var loc = lastLoc;
 
-            var loc = code.location;
+            // Gruener Rahmen
             ctx.beginPath();
             ctx.moveTo(loc.topLeftCorner.x*sx,     loc.topLeftCorner.y*sy);
             ctx.lineTo(loc.topRightCorner.x*sx,    loc.topRightCorner.y*sy);
@@ -109,6 +110,7 @@
             ctx.lineWidth   = 6;
             ctx.stroke();
 
+            // Text
             var cx = (loc.topLeftCorner.x + loc.topRightCorner.x) / 2 * sx;
             var cy = loc.topLeftCorner.y * sy - 16;
             ctx.font        = 'bold 32px sans-serif';
@@ -118,12 +120,6 @@
             ctx.shadowBlur  = 8;
             ctx.fillText('ERKANNT!', cx, cy);
             ctx.shadowBlur  = 0;
-
-            status.textContent = 'QR-Code erkannt!';
-            status.className   = 'found';
-          } else {
-            status.textContent = 'QR-Code vor Kamera halten...';
-            status.className   = '';
           }
         }, 150);
 
