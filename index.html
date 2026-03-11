@@ -11,10 +11,10 @@
 </head>
 <body>
 
-  <!-- A-FRAME SZENE: immer im Hintergrund geladen, nie versteckt -->
+  <!-- A-FRAME: autoStart=true, startet sofort beim Laden -->
   <a-scene
     id="ar-scene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false;"
+    mindar-image="imageTargetSrc: ./targets.mind;"
     color-space="sRGB"
     renderer="colorManagement: true;"
     vr-mode-ui="enabled: false"
@@ -55,79 +55,42 @@
         </a-entity>
       </a-entity>
 
-      <a-plane color="#ff4d00" opacity="0.04" width="0.95" height="0.95" position="0 0 -0.005"></a-plane>
-
     </a-entity>
   </a-scene>
 
-  <!-- SETUP SCREEN: liegt ueber der Szene -->
-  <div id="setup-screen">
-    <div class="setup-logo">&#127919;</div>
-    <h1 class="setup-title">Dart AR Trainer</h1>
-    <p class="setup-subtitle">Augmented Reality fuer dein Dart-Training</p>
-
-    <div class="setup-steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text">
-          Marker erstellen auf
-          <a href="https://hiukim.github.io/mind-ar-js-doc/tools/compile" target="_blank">MindAR Compiler</a>:
-          Dartscheiben-Foto hochladen, <code>targets.mind</code> herunterladen und ins GitHub Repo hochladen.
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text">
-          Stelle sicher dass <code>targets.mind</code> im selben Ordner liegt wie diese Seite.
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text">
-          Kamera auf die Dartscheibe richten - das AR-Overlay erscheint automatisch!
-        </div>
-      </div>
-    </div>
-
-    <button id="btn-start" onclick="App.start()">AR starten</button>
-    <p class="setup-note">Kamera-Zugriff wird benoetigt.</p>
+  <!-- HAUPT-UI oben drauf -->
+  <div id="header">
+    <h1>DART AR</h1>
+    <div id="status" class="searching">Scheibe suchen...</div>
   </div>
 
-  <!-- HAUPT-UI: liegt ueber der Szene, unter Setup -->
-  <div id="main-ui" class="hidden">
-    <div id="header">
-      <h1>DART AR</h1>
-      <div id="status" class="searching">Scheibe suchen...</div>
+  <div id="controls">
+    <div id="score-row">
+      <div class="score-item">
+        <div class="score-val" id="score-hits">0</div>
+        <div class="score-lbl">Treffer</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" id="score-streak">0</div>
+        <div class="score-lbl">Streak</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" id="score-total">0</div>
+        <div class="score-lbl">Gesamt</div>
+      </div>
     </div>
 
-    <div id="controls">
-      <div id="score-row">
-        <div class="score-item">
-          <div class="score-val" id="score-hits">0</div>
-          <div class="score-lbl">Treffer</div>
-        </div>
-        <div class="score-item">
-          <div class="score-val" id="score-streak">0</div>
-          <div class="score-lbl">Streak</div>
-        </div>
-        <div class="score-item">
-          <div class="score-val" id="score-total">0</div>
-          <div class="score-lbl">Gesamt</div>
-        </div>
-      </div>
-
-      <div id="target-display">
-        <div id="target-label">Naechstes Ziel</div>
-        <div id="target-field">T20</div>
-      </div>
-
-      <div id="btn-row">
-        <button class="btn btn-secondary" id="btn-mode" onclick="App.toggleMode()">Modus: Zufaellig</button>
-        <button class="btn btn-primary" onclick="App.nextTarget()">Weiter</button>
-      </div>
-
-      <button class="btn btn-hit" onclick="App.registerHit()">Treffer!</button>
+    <div id="target-display">
+      <div id="target-label">Naechstes Ziel</div>
+      <div id="target-field">T20</div>
     </div>
+
+    <div id="btn-row">
+      <button class="btn btn-secondary" id="btn-mode" onclick="App.toggleMode()">Modus: Zufaellig</button>
+      <button class="btn btn-primary" onclick="App.nextTarget()">Weiter</button>
+    </div>
+
+    <button class="btn btn-hit" onclick="App.registerHit()">Treffer!</button>
   </div>
 
   <script src="app.js"></script>

@@ -1,5 +1,6 @@
 /**
  * Dart AR Trainer - app.js
+ * MindAR startet automatisch - wir steuern nur UI und Spiellogik
  */
 
 const App = (() => {
@@ -22,7 +23,7 @@ const App = (() => {
 
   let state = {
     currentTarget:'T20', hits:0, streak:0, total:0,
-    modeIndex:0, markerFound:false, started:false
+    modeIndex:0, markerFound:false
   };
 
   function getEl(id) { return document.getElementById(id); }
@@ -69,55 +70,6 @@ const App = (() => {
     if(bm) bm.textContent='Modus: '+MODE_LABELS[MODES[state.modeIndex]];
   }
 
-  function start() {
-    if(state.started) return;
-    state.started = true;
-
-    // Setup ausblenden, Haupt-UI zeigen
-    var setup=getEl('setup-screen');
-    if(setup) setup.classList.add('hidden');
-    var mainUI=getEl('main-ui');
-    if(mainUI) mainUI.classList.remove('hidden');
-
-    setStatus('AR wird gestartet...','searching');
-
-    // Marker-Events registrieren
-    var anchor=getEl('ar-anchor');
-    if(anchor) {
-      anchor.addEventListener('targetFound', function(){
-        state.markerFound=true;
-        setStatus('Scheibe erkannt','found');
-      });
-      anchor.addEventListener('targetLost', function(){
-        state.markerFound=false;
-        setStatus('Scheibe suchen...','searching');
-      });
-    }
-
-    // MindAR direkt starten - es fragt Kamera selbst an
-    var scene=getEl('ar-scene');
-    if(!scene) { setStatus('Fehler: Szene nicht gefunden','searching'); return; }
-
-    var sys = scene.systems && scene.systems['mindar-image-system'];
-    if(sys) {
-      // Szene bereits geladen
-      sys.start();
-      setStatus('Scheibe suchen...','searching');
-    } else {
-      // Auf loaded-Event warten
-      scene.addEventListener('loaded', function onLoaded() {
-        scene.removeEventListener('loaded', onLoaded);
-        var s = scene.systems && scene.systems['mindar-image-system'];
-        if(s) {
-          s.start();
-          setStatus('Scheibe suchen...','searching');
-        } else {
-          setStatus('Fehler: MindAR nicht gefunden','searching');
-        }
-      });
-    }
-  }
-
   function nextTarget() {
     state.total++;
     state.currentTarget=pickTarget();
@@ -144,7 +96,22 @@ const App = (() => {
     updateUI();
   }
 
-  document.addEventListener('DOMContentLoaded', function(){ updateUI(); });
+  // Marker-Events beim Laden registrieren
+  document.addEventListener('DOMContentLoaded', function() {
+    updateUI();
 
-  return { start, nextTarget, registerHit, toggleMode, resetStats };
+    var anchor = getEl('ar-anchor');
+    if(anchor) {
+      anchor.addEventListener('targetFound', function(){
+        state.markerFound=true;
+        setStatus('Scheibe erkannt','found');
+      });
+      anchor.addEventListener('targetLost', function(){
+        state.markerFound=false;
+        setStatus('Scheibe suchen...','searching');
+      });
+    }
+  });
+
+  return { nextTarget, registerHit, toggleMode, resetStats };
 })();
