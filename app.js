@@ -69,23 +69,8 @@ const App = (() => {
     if(bm) bm.textContent='Modus: '+MODE_LABELS[MODES[state.modeIndex]];
   }
 
-  // AR starten - Szene ist bereits geladen, wir brauchen nur Kamera + MindAR starten
-  async function start() {
+  function start() {
     if(state.started) return;
-
-    // Kamera-Berechtigung anfragen
-    try {
-      setStatus('Kamera wird gestartet...','searching');
-      var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
-      stream.getTracks().forEach(function(t){ t.stop(); });
-      await new Promise(function(res){ setTimeout(res, 800); });
-    } catch(err) {
-      console.error('Kamera-Fehler:', err);
-      alert('Kamera-Zugriff verweigert.\nBitte Kamera-Berechtigung erteilen und Seite neu laden.');
-      setStatus('Kamera verweigert','searching');
-      return;
-    }
-
     state.started = true;
 
     // Setup ausblenden, Haupt-UI zeigen
@@ -93,6 +78,8 @@ const App = (() => {
     if(setup) setup.classList.add('hidden');
     var mainUI=getEl('main-ui');
     if(mainUI) mainUI.classList.remove('hidden');
+
+    setStatus('AR wird gestartet...','searching');
 
     // Marker-Events registrieren
     var anchor=getEl('ar-anchor');
@@ -107,22 +94,25 @@ const App = (() => {
       });
     }
 
-    // MindAR direkt starten - Szene ist bereits geladen
+    // MindAR direkt starten - es fragt Kamera selbst an
     var scene=getEl('ar-scene');
-    if(!scene) return;
+    if(!scene) { setStatus('Fehler: Szene nicht gefunden','searching'); return; }
 
     var sys = scene.systems && scene.systems['mindar-image-system'];
     if(sys) {
-      setStatus('Scheibe suchen...','searching');
+      // Szene bereits geladen
       sys.start();
+      setStatus('Scheibe suchen...','searching');
     } else {
-      // Szene noch nicht fertig - kurz auf loaded warten
-      setStatus('AR wird initialisiert...','searching');
-      scene.addEventListener('loaded', function() {
+      // Auf loaded-Event warten
+      scene.addEventListener('loaded', function onLoaded() {
+        scene.removeEventListener('loaded', onLoaded);
         var s = scene.systems && scene.systems['mindar-image-system'];
         if(s) {
-          setStatus('Scheibe suchen...','searching');
           s.start();
+          setStatus('Scheibe suchen...','searching');
+        } else {
+          setStatus('Fehler: MindAR nicht gefunden','searching');
         }
       });
     }
