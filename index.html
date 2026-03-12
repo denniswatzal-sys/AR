@@ -174,19 +174,6 @@
         ctx.lineWidth   = 1;
         ctx.stroke();
 
-        // Feldzahl
-        var labelR  = rDouble * 1.0;
-        var midAngle = angle1 + segmentAngle / 2;
-        var lx = cx + Math.cos(midAngle) * (rOuter * 0.78);
-        var ly = cy + Math.sin(midAngle) * (rOuter * 0.78);
-        ctx.font      = 'bold ' + Math.round(r * 0.1) + 'px sans-serif';
-        ctx.fillStyle = isTarget ? '#ff4d00' : 'rgba(255,255,255,0.7)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor  = '#000';
-        ctx.shadowBlur   = 4;
-        ctx.fillText(field, lx, ly);
-        ctx.shadowBlur   = 0;
       }
 
       // Aeusserer Ring (blau)
