@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dart AR - Ring Erkennung</title>
+  <title>Dart AR - Felder</title>
   <style>
     * { margin:0; padding:0; }
     body { background:#000; overflow:hidden; font-family:sans-serif; }
@@ -55,6 +55,12 @@
     var status = document.getElementById('status');
     var debug  = document.getElementById('debug');
 
+    // Dartscheibe: Felder im Uhrzeigersinn ab 12 Uhr
+    var FIELDS = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+
+    // Zielfeld (spaeter dynamisch)
+    var TARGET = 20;
+
     var lastRing   = null;
     var lostFrames = 0;
     var KEEP_FRAMES = 8;
@@ -67,7 +73,7 @@
         status.textContent = 'Kamera wird verbunden...';
         var stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
         video.srcObject = stream;
-        status.textContent = 'Blauen Ring vor Kamera halten...';
+        status.textContent = 'Blauen Ring suchen...';
         document.querySelector('button').style.display = 'none';
 
         setInterval(function() {
@@ -102,25 +108,7 @@
             var cx = lastRing.cx * sx;
             var cy = lastRing.cy * sy;
             var r  = lastRing.r  * ((sx + sy) / 2);
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI*2);
-            ctx.strokeStyle = '#00ffaa';
-            ctx.lineWidth   = 3;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, 8, 0, Math.PI*2);
-            ctx.fillStyle = '#ff4d00';
-            ctx.fill();
-
-            ctx.font        = 'bold 20px sans-serif';
-            ctx.fillStyle   = '#ffffff';
-            ctx.textAlign   = 'center';
-            ctx.shadowColor = '#000';
-            ctx.shadowBlur  = 6;
-            ctx.fillText('BULL', cx, cy - 14);
-            ctx.shadowBlur  = 0;
+            drawDartboard(cx, cy, r);
           }
         }, 150);
 
@@ -130,16 +118,106 @@
       }
     }
 
+    function drawDartboard(cx, cy, r) {
+      var segmentAngle = (2 * Math.PI) / 20;
+      // Startwinkel: -90 Grad (12 Uhr) minus halbes Segment
+      var startOffset = -Math.PI / 2 - segmentAngle / 2;
+
+      // Radien relativ zum erkannten Ring (= Doppelring aussen)
+      var rDouble     = r;          // blauer Ring = Aussenkante Doppelring
+      var rOuter      = r * 0.94;   // Innenkante Doppelring
+      var rTripleOut  = r * 0.63;   // Aussenkante Tripling
+      var rTripleIn   = r * 0.57;   // Innenkante Tripling
+      var rBull       = r * 0.08;   // Bull
+      var rBullOuter  = r * 0.16;   // Bull outer (25)
+
+      for(var i = 0; i < 20; i++) {
+        var angle1 = startOffset + i * segmentAngle;
+        var angle2 = angle1 + segmentAngle;
+        var field  = FIELDS[i];
+        var isTarget = (field === TARGET);
+
+        // Zielfeld leuchtet orange, andere weiss/transparent
+        var segColor    = isTarget ? 'rgba(255,100,0,0.55)' : 'rgba(255,255,255,0.08)';
+        var doubleColor = isTarget ? 'rgba(255,100,0,0.8)'  : 'rgba(255,255,255,0.18)';
+        var tripleColor = isTarget ? 'rgba(255,100,0,0.8)'  : 'rgba(255,255,255,0.18)';
+
+        // Hauptsegment
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, rOuter, angle1, angle2);
+        ctx.closePath();
+        ctx.fillStyle   = segColor;
+        ctx.fill();
+
+        // Doppelring
+        ctx.beginPath();
+        ctx.arc(cx, cy, rDouble, angle1, angle2);
+        ctx.arc(cx, cy, rOuter,  angle2, angle1, true);
+        ctx.closePath();
+        ctx.fillStyle = doubleColor;
+        ctx.fill();
+
+        // Tripling
+        ctx.beginPath();
+        ctx.arc(cx, cy, rTripleOut, angle1, angle2);
+        ctx.arc(cx, cy, rTripleIn,  angle2, angle1, true);
+        ctx.closePath();
+        ctx.fillStyle = tripleColor;
+        ctx.fill();
+
+        // Segment-Trennlinie
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(angle1) * rDouble, cy + Math.sin(angle1) * rDouble);
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth   = 1;
+        ctx.stroke();
+
+        // Feldzahl
+        var labelR  = rDouble * 1.0;
+        var midAngle = angle1 + segmentAngle / 2;
+        var lx = cx + Math.cos(midAngle) * (rOuter * 0.78);
+        var ly = cy + Math.sin(midAngle) * (rOuter * 0.78);
+        ctx.font      = 'bold ' + Math.round(r * 0.1) + 'px sans-serif';
+        ctx.fillStyle = isTarget ? '#ff4d00' : 'rgba(255,255,255,0.7)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor  = '#000';
+        ctx.shadowBlur   = 4;
+        ctx.fillText(field, lx, ly);
+        ctx.shadowBlur   = 0;
+      }
+
+      // Aeusserer Ring (blau)
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(0,200,255,0.6)';
+      ctx.lineWidth   = 3;
+      ctx.stroke();
+
+      // Bull outer (25)
+      ctx.beginPath();
+      ctx.arc(cx, cy, rBullOuter, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+
+      // Bull
+      ctx.beginPath();
+      ctx.arc(cx, cy, rBull, 0, Math.PI*2);
+      ctx.fillStyle = TARGET === 'BULL' ? '#ff4d00' : 'rgba(255,50,50,0.7)';
+      ctx.fill();
+    }
+
     function detectBlueRing(imageData, w, h) {
       var data = imageData.data;
       var bluePixels = [];
 
       for(var i = 0; i < data.length; i += 4) {
         var r = data[i], g = data[i+1], b = data[i+2];
-        // Strengere Bedingungen:
-        // - B muss > 120 sein (kraeftiges Blau)
-        // - B muss mindestens doppelt so gross wie R und G sein
-        // - R und G duerfen nicht zu hoch sein (kein Weiss/Grau)
         if(b > 120 && b > r * 2.0 && b > g * 2.0 && r < 100 && g < 100) {
           var idx = i / 4;
           bluePixels.push({ x: idx % w, y: Math.floor(idx / w) });
@@ -147,17 +225,13 @@
       }
 
       debug.textContent = 'Blaue Pixel: ' + bluePixels.length;
-
-      // Mindestens 200 blaue Pixel noetig
       if(bluePixels.length < 200) return null;
 
-      // Mittelpunkt
       var sumX = 0, sumY = 0;
       bluePixels.forEach(function(p) { sumX += p.x; sumY += p.y; });
       var cx = sumX / bluePixels.length;
       var cy = sumY / bluePixels.length;
 
-      // Radius
       var sumR = 0;
       bluePixels.forEach(function(p) {
         var dx = p.x - cx, dy = p.y - cy;
@@ -167,18 +241,13 @@
 
       if(radius < 20) return null;
 
-      // Kreisform pruefen: Pixel muessen gleichmaessig verteilt sein
-      // Standardabweichung des Radius berechnen
       var sumDiff = 0;
       bluePixels.forEach(function(p) {
         var dx = p.x - cx, dy = p.y - cy;
-        var r = Math.sqrt(dx*dx + dy*dy);
-        sumDiff += Math.abs(r - radius);
+        var pr = Math.sqrt(dx*dx + dy*dy);
+        sumDiff += Math.abs(pr - radius);
       });
-      var avgDiff = sumDiff / bluePixels.length;
-
-      // Wenn Pixel zu weit vom Kreis abweichen -> kein Ring
-      if(avgDiff > radius * 0.5) return null;
+      if(sumDiff / bluePixels.length > radius * 0.5) return null;
 
       return { cx:cx, cy:cy, r:radius };
     }
